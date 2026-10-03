@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_inappwebview/flutter_inappwebview.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  await Permission.notification.request();
 
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Color(0xFF0F172A),
@@ -40,18 +38,32 @@ class WebViewScreen extends StatefulWidget {
 }
 
 class _WebViewScreenState extends State<WebViewScreen> {
-  InAppWebViewController? webViewController;
-  PullToRefreshController? pullToRefreshController;
-  double progress = 0;
-  final String appUrl = "https://gopq.lovable.app";
+  late final WebViewController controller;
+  int progress = 0;
 
   @override
   void initState() {
     super.initState();
-    pullToRefreshController = PullToRefreshController(
-      settings: PullToRefreshSettings(color: const Color(0xFF3B82F6)),
-      onRefresh: () async => webViewController?.reload(),
-    );
+    controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(const Color(0xFF0F172A))
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onProgress: (p) {
+            setState(() {
+              progress = p;
+            });
+          },
+          onNavigationRequest: (NavigationRequest request) {
+            if (!request.url.startsWith('https://gopq.lovable.app')) {
+              launchUrl(Uri.parse(request.url), mode: LaunchMode.externalApplication);
+              return NavigationDecision.prevent;
+            }
+            return NavigationDecision.navigate;
+          },
+        ),
+      )
+      ..loadRequest(Uri.parse('https://gopq.lovable.app'));
   }
 
   @override
@@ -60,8 +72,8 @@ class _WebViewScreenState extends State<WebViewScreen> {
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
-        if (await webViewController?.canGoBack() ?? false) {
-          webViewController?.goBack();
+        if (await controller.canGoBack()) {
+          controller.goBack();
         } else {
           SystemNavigator.pop();
         }
@@ -70,31 +82,10 @@ class _WebViewScreenState extends State<WebViewScreen> {
         body: SafeArea(
           child: Stack(
             children: [
-              InAppWebView(
-                initialUrlRequest: URLRequest(url: WebUri(appUrl)),
-                pullToRefreshController: pullToRefreshController,
-                initialSettings: InAppWebViewSettings(
-                  javaScriptEnabled: true,
-                  domStorageEnabled: true,
-                  useOnDownloadStart: true,
-                  allowsInlineMediaPlayback: true,
-                ),
-                onWebViewCreated: (c) => webViewController = c,
-                onLoadStop: (c, url) => pullToRefreshController?.endRefreshing(),
-                onProgressChanged: (c, p) {
-                  if (p == 100) pullToRefreshController?.endRefreshing();
-                  setState(() => progress = p / 100);
-                },
-                onDownloadStartRequest: (c, req) async {
-                  final uri = Uri.parse(req.url.toString());
-                  if (await canLaunchUrl(uri)) {
-                    await launchUrl(uri, mode: LaunchMode.externalApplication);
-                  }
-                },
-              ),
-              if (progress < 1.0)
+              WebViewWidget(controller: controller),
+              if (progress < 100)
                 LinearProgressIndicator(
-                  value: progress,
+                  value: progress / 100,
                   backgroundColor: Colors.transparent,
                   valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF3B82F6)),
                   minHeight: 2.5,

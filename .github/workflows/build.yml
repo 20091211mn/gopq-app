@@ -26,8 +26,8 @@ jobs:
           flutter create --org com.gopq.downloader app
           cd app
           cp /tmp/app_main.dart lib/main.dart
-          sed -i '/<application/i \    <uses-permission android:name="android.permission.INTERNET"/>\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>' android/app/src/main/AndroidManifest.xml
-          flutter pub add flutter_inappwebview permission_handler url_launcher
+          sed -i '/<application/i \    <uses-permission android:name="android.permission.INTERNET"/>\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>' android/app/src/main/AndroidManifest.xml
+          flutter pub add webview_flutter url_launcher
           flutter build apk --release
 
       - name: Upload APK
