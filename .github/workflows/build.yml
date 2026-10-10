@@ -10,28 +10,64 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
-
       - uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
 
-      - name: Prepare Flutter Project and Build
+      - name: Create and configure Flutter project
         run: |
           cp lib/main.dart /tmp/app_main.dart
-          flutter create --org com.gopq.downloader app
+          flutter create --org com.gopq --project-name gopq app
           cd app
           cp /tmp/app_main.dart lib/main.dart
-          sed -i '/<application/i \    <uses-permission android:name="android.permission.INTERNET"/>\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>' android/app/src/main/AndroidManifest.xml
+          mkdir -p assets
+          curl -fsSL https://gopq.lovable.app/icon-512.png -o assets/icon.png
           flutter pub add webview_flutter url_launcher
+          flutter pub add --dev flutter_launcher_icons flutter_native_splash
+          cat >> pubspec.yaml <<'YAML'
+
+          flutter_launcher_icons:
+            android: true
+            ios: false
+            image_path: "assets/icon.png"
+            adaptive_icon_background: "#0F172A"
+            adaptive_icon_foreground: "assets/icon.png"
+
+          flutter_native_splash:
+            color: "#0F172A"
+            image: "assets/icon.png"
+            android_12:
+              color: "#0F172A"
+              image: "assets/icon.png"
+          YAML
+          sed -i 's/^  uses-material-design: true/  uses-material-design: true\n  assets:\n    - assets\/icon.png/' pubspec.yaml
+          cat pubspec.yaml | tail -30
+          flutter pub get
+          dart run flutter_launcher_icons
+          dart run flutter_native_splash:create
+          M=android/app/src/main/AndroidManifest.xml
+          sed -i 's/android:label="[^"]*"/android:label="Gopq"/' $M
+          sed -i '/<application/i \    <uses-permission android:name="android.permission.INTERNET"/>\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>' $M
           flutter build apk --release
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Gopq-Media-Downloader
+          name: Gopq-App
           path: app/build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.run_number }}
+          name: Gopq v${{ github.run_number }}
+          files: app/build/app/outputs/flutter-apk/app-release.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+permissions:
+  contents: write
